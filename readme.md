@@ -8,10 +8,10 @@ Post-Training（后训练）方向的技术笔记，覆盖 RLHF / GRPO / DPO 等
 |:---:|:------|:------|:---:|
 | 01 | [DeepSeek-R1 Tech Report](01-deepseek-r1-tech-report.md) | [arXiv](https://arxiv.org/abs/2501.12948) | ✅ |
 | 02 | [Skywork Open Reasoner 1](02-skywork-open-reasoner.md) | [arXiv](https://arxiv.org/abs/2505.22312) | ✅ |
-| 03 | Open-R1 (HuggingFace) | [Blog](https://huggingface.co/blog/open-r1) | 🔜 |
-| 04 | AceReason-Nemotron (NVIDIA) | [arXiv](https://arxiv.org/html/2505.16400v1) | 🔜 |
-| 05 | Open-Reasoner-Zero | [NeurIPS 2025](https://neurips.cc/virtual/2025/poster/118391) | 🔜 |
-| 06 | verl 框架解析 | [知乎](https://zhuanlan.zhihu.com/p/30876678559) | 🔜 |
+| 03 | [Open-R1](03-open-r1.md) | [Blog](https://huggingface.co/blog/open-r1) | ✅ |
+| 04 | [AceReason-Nemotron](04-acereason-nemotron.md) | [arXiv](https://arxiv.org/abs/2505.16400) | ✅ |
+| 05 | [Open-Reasoner-Zero](05-open-reasoner-zero.md) | [arXiv](https://arxiv.org/abs/2503.24290) | ✅ |
+| 06 | [verl 框架解析](06-verl-framework.md) | [知乎](https://zhuanlan.zhihu.com/p/30876678559) | ✅ |
 
 ## 🗺️ 阅读顺序
 
