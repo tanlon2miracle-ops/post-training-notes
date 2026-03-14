@@ -125,21 +125,188 @@ NVIDIA 开源了 **Llama-Nemotron Post-Training Dataset v1.1**，包含约 **330
 ### 5.1 NeMo-Skills
 
 - **仓库:** https://github.com/NVIDIA-NeMo/Skills
-- **用途:** 数学/代码数据管护、解答生成与验证、模型评测
-- **核心能力:**
-  - 灵活 LLM 推理：支持 TensorRT-LLM / vLLM / sglang / Megatron
-  - 从单 GPU 到上万 GPU Slurm 集群无缝扩展
-  - 评测覆盖广泛：
-    - 数学（自然语言）：AIME24/25, HMMT
-    - 数学（形式化）：MiniF2F, ProofNet, Putnam-Bench
-    - 代码：SWE-bench, LiveCodeBench, BIRD
-    - 科学：HLE, SciCode, GPQA
-    - 指令遵循：IFBench, IFEval
-    - 长上下文：RULER, MRCR
-    - 工具调用：BFCL v3
-    - 多语言：MMLU-ProX, FLORES-200
-    - 语音/音频、视觉-语言模型
-  - 训练集成：NeMo-RL / verl
+- **文档:** https://nvidia-nemo.github.io/Skills/
+- **论文/模型:** OpenMathReasoning, OpenReasoning 等多个 NVIDIA 开源项目基于此构建
+- **用途:** LLM 技能提升的端到端工具包——合成数据生成、数学/代码数据管护、模型训练、评测
+
+#### 5.1.1 为什么需要它？
+
+训练推理模型需要大量高质量合成数据，但数据生成→验证→去污→训练→评测的完整流程非常复杂。NeMo-Skills 将这些步骤封装为统一管道，**一行命令切换本地单 GPU 和万卡 Slurm 集群**。
+
+#### 5.1.2 核心架构：三大管道
+
+```
+NeMo-Skills 架构：
+
+┌─────────────────────────────────────────────┐
+│  Generation Pipeline（合成数据生成）          │
+│  · 输入 JSONL + Prompt 模板 → LLM 批量推理    │
+│  · 支持多采样（num_random_seeds=32）          │
+│  · 自动断点续跑 + 分块并行                    │
+├─────────────────────────────────────────────┤
+│  Evaluation Pipeline（模型评测）              │
+│  · 30+ 基准覆盖数学/代码/科学/多语言等        │
+│  · 支持符号验证 + LLM-as-judge 双重判定       │
+│  · 可并行调度多个 Slurm 评测任务              │
+├─────────────────────────────────────────────┤
+│  Training Pipeline（模型训练）                │
+│  · 集成 NeMo-RL / verl 框架                  │
+│  · 支持 SFT + RL 训练                        │
+└─────────────────────────────────────────────┘
+```
+
+#### 5.1.3 Generation Pipeline（合成数据生成）
+
+这是 Nemotron 数据集构建的核心管道。
+
+**推理后端（可无缝切换）：**
+
+| 后端 | 说明 | 适用场景 |
+|------|------|----------|
+| TensorRT-LLM | NVIDIA 优化推理引擎 | 大规模生产、最高吞吐 |
+| vLLM | 开源高性能推理 | 通用本地/集群 |
+| sglang | 结构化生成优化 | 复杂 prompt 场景 |
+| Megatron | 多节点大模型推理 | 超大参数模型 |
+| OpenAI API | 外部 API 调用 | 快速原型验证 |
+
+**关键功能：**
+- **多采样生成：** `--num_random_seeds=32` 为每道题生成 32 个不同解法（高温采样）
+- **自动续跑：** 中断后重新提交相同命令，自动跳过已完成部分
+- **分块并行：** `--num_chunks=N` 将数据拆分到 N 个 Slurm 任务并行，完成后自动合并
+- **软失败模式：** `++server.enable_soft_fail=True`，上下文超限时自动裁剪而非崩溃
+- **Prompt 模板化：** YAML 格式定义 prompt，支持 few-shot、system/user 角色、变量替换
+
+**在 Nemotron 数据集中的应用：**
+```bash
+# 示例：为 MATH 训练集生成 32 个合成解法
+ns generate \
+    --cluster=slurm \
+    --server_type=trtllm \
+    --model=/hf_models/Llama-3.1-405B-Instruct \
+    --server_gpus=8 --server_nodes=2 \
+    --num_random_seeds=32 \
+    --output_dir=/workspace/synthetic-math-solutions \
+    --input_file=/nemo_run/code/nemo_skills/dataset/math/train.jsonl \
+    ++eval_type=hendrycks_math \
+    ++prompt_config=generic/math-base
+```
+
+#### 5.1.4 数学数据管护流程（NeMo-Skills 实现）
+
+NeMo-Skills 内置了完整的数学数据生产流水线：
+
+```
+AoPS 论坛原始帖子
+    │
+    ▼
+问题提取（LLM 从帖子中提取题目）
+    │
+    ▼
+问题分类（证明/非证明、多选/非多选）
+    │
+    ▼
+问题转换（证明题→答案型，多选→直答）
+    │
+    ▼
+答案提取（从论坛讨论中提取标准答案）
+    │
+    ▼
+基准去污（lmsys decontaminator 排除评测集相似题）
+    │
+    ▼
+多模型解答生成（Qwen-Math / QwQ / DeepSeek-R1）
+    │
+    ▼
+解答验证
+  ├── 符号验证：答案提取 → 与标准答案对比（精确匹配）
+  └── LLM-as-judge：当标准答案不确定时，多数投票 + LLM 裁判
+    │
+    ▼
+过滤输出（只保留正确解法）
+```
+
+**解答验证细节：**
+- 从 `\boxed{}` 中提取预测答案
+- 使用 [math_grader.py](https://github.com/NVIDIA-NeMo/Skills/blob/main/nemo_skills/evaluation/math_grader.py) 做符号比较
+- 可选 LLM-as-judge 做更鲁棒的判定
+
+#### 5.1.5 Evaluation Pipeline（模型评测）
+
+支持 30+ 主流基准，覆盖 10 个领域：
+
+| 领域 | 代表性基准 |
+|------|-----------|
+| 数学（自然语言） | AIME24, AIME25, HMMT Feb25 |
+| 数学（形式化） | MiniF2F, ProofNet, Putnam-Bench |
+| 代码 | SWE-bench, LiveCodeBench, BIRD |
+| 科学 | HLE, SciCode, GPQA |
+| 指令遵循 | IFBench, IFEval |
+| 长上下文 | RULER, MRCR, AALCR |
+| 工具调用 | BFCL v3 |
+| 多语言 | MMLU-ProX, FLORES-200, WMT24PP |
+| 语音/音频 | ASR-Leaderboard, MMAU-Pro |
+| 视觉-语言 | MMMU-Pro |
+
+**评测特色：**
+- 每个基准都可并行到多个 Slurm 任务
+- 支持自托管 LLM judge
+- 可自定义 prompt 和基准配置
+
+#### 5.1.6 已发布的数据集和模型（基于 NeMo-Skills 构建）
+
+| 时间 | 项目 | 说明 |
+|------|------|------|
+| 2025-07 | OpenReasoning | 数学/代码/科学 SOTA 开源推理模型 |
+| 2025-04 | OpenMathReasoning | 306K 题目 + 320万 CoT + 170万 TIR 解法 |
+| 2025-04 | Llama-Nemotron 数据集 | 3300万样本后训练数据集（本文档） |
+| 2024-10 | OpenMathInstruct-2 | 1400万数学指令调优数据 |
+| 2025-12 | Nemotron-Math-v2 / Math-Proofs-v1 | 形式化证明数据 |
+
+#### 5.1.7 安装与使用
+
+```bash
+# 安装（推荐 editable 模式）
+git clone https://github.com/NVIDIA-NeMo/Skills.git
+cd Skills
+pip install -e .
+
+# 初始化集群配置
+ns setup  # 交互式选择 local / slurm
+
+# 准备评测数据
+ns prepare_data aime24 aime25
+
+# 运行评测（本地 vLLM）
+ns generate \
+    --cluster=local \
+    --server_type=vllm \
+    --model=Qwen/Qwen2.5-1.5B-Instruct \
+    --server_gpus=1 \
+    --output_dir=/workspace/eval \
+    --input_file=/workspace/input.jsonl \
+    ++prompt_config=/workspace/prompt.yaml
+
+# 运行评测（API 模式，无需 GPU）
+ns generate \
+    --server_type=openai \
+    --model=meta/llama-3.1-8b-instruct \
+    --server_address=https://integrate.api.nvidia.com/v1 \
+    --output_dir=./generation \
+    --input_file=./input.jsonl \
+    ++prompt_config=./prompt.yaml
+```
+
+**集群配置示例（Slurm）：**
+```yaml
+executor: slurm
+containers:
+  trtllm: nvcr.io/nvidia/tensorrt-llm/release:1.0.0
+  vllm: vllm/vllm-openai:v0.10.1.1
+  nemo-skills: dockerfile:dockerfiles/Dockerfile.nemo-skills
+mounts:
+  - /mnt/datadrive/models:/models
+  - /home/user/workspace:/workspace
+```
 
 ### 5.2 NeMo-Curator
 
