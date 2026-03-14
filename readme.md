@@ -5,7 +5,7 @@
 
 ## 📖 项目介绍
 
-随着 DeepSeek-R1 的发布，**强化学习驱动的推理能力训练**成为 LLM 后训练的核心范式。本仓库系统梳理了该方向的 6 篇代表性工作，从算法原理到工程实践，形成完整的知识体系。
+随着 DeepSeek-R1 的发布，**强化学习驱动的推理能力训练**成为 LLM 后训练的核心范式。本仓库系统梳理了该方向的 7 篇代表性工作，从算法原理到工程实践、数据构造，形成完整的知识体系。
 
 ```
 后训练全景：
@@ -31,7 +31,8 @@ Pre-trained LLM
 | 04 | [AceReason-Nemotron](04-acereason-nemotron.md) | NVIDIA | Math→Code 分阶段 RL + 跨域泛化 | [arXiv](https://arxiv.org/abs/2505.16400) |
 | 05 | [Open-Reasoner-Zero](05-open-reasoner-zero.md) | 社区 | 极简 PPO 路线，1/10 步数复现 R1-Zero | [arXiv](https://arxiv.org/abs/2503.24290) |
 | 06 | [verl 框架](06-verl-framework.md) | 字节跳动 | RL 训练框架选型与实操 | [GitHub](https://github.com/volcengine/verl) |
-| — | [横向对比](comparison.md) | — | 6 篇工作的系统对比分析 | — |
+| 07 | [Llama-Nemotron 数据集](07-llama-nemotron-post-training-dataset.md) | NVIDIA | 3300万样本后训练数据集 + 完整工具链 | [Blog](https://developer.nvidia.cn/blog/build-custom-reasoning-models-with-advanced-open-post-training-datasets/) |
+| — | [横向对比](comparison.md) | — | 各工作的系统对比分析 | — |
 
 ## 🗺️ 阅读路线
 
@@ -84,6 +85,9 @@ flowchart LR
 | Open-R1 项目 | https://github.com/huggingface/open-r1 |
 | AceReason-Nemotron | https://huggingface.co/nvidia/AceReason-Nemotron-14B |
 | Open-Reasoner-Zero | https://github.com/Open-Reasoner-Zero/Open-Reasoner-Zero |
+| Llama-Nemotron 后训练数据集 | https://huggingface.co/datasets/nvidia/Llama-Nemotron-Post-Training-Dataset |
+| NeMo-Skills（数学/代码数据管护） | https://github.com/NVIDIA-NeMo/Skills |
+| NeMo-Curator（通用数据管护） | https://github.com/NVIDIA-NeMo/Curator |
 | verl 框架 | https://github.com/volcengine/verl |
 | OpenRLHF 框架 | https://github.com/OpenRLHF/OpenRLHF |
 | TRL 框架 | https://github.com/huggingface/trl |
