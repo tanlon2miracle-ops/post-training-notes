@@ -480,9 +480,10 @@ python3 main.py \
 | 工具 | 用途 | 地址 |
 |------|------|------|
 | Llama-3.1-Nemotron-70B-Reward | 奖励模型，用于聊天数据拒绝采样 | https://huggingface.co/nvidia/Llama-3.1-Nemotron-70B-Reward-HF |
-| NeMo Framework | 模型训练 | NVIDIA NeMo |
-| NeMo Customizer | 微调微服务 | NVIDIA NeMo |
-| NeMo-RL / verl | 强化学习训练 | GitHub |
+| NeMo Framework | 端到端模型训练框架 | https://github.com/NVIDIA/NeMo |
+| NeMo Customizer | 模型微调微服务 | https://developer.nvidia.com/nemo-microservices |
+| NeMo-RL | NVIDIA 强化学习训练库 | https://github.com/NVIDIA-NeMo/RL |
+| verl | 字节跳动开源 RL 训练框架 | https://github.com/volcengine/verl |
 
 ---
 
