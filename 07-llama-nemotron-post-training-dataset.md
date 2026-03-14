@@ -156,11 +156,100 @@ NVIDIA 开源了 **Llama-Nemotron Post-Training Dataset v1.1**，包含约 **330
   - 近线性扩展（1→4 H100 节点：2.05h → 0.50h）
 - **安装:** `uv pip install "nemo-curator[text_cuda12]"`
 
-### 5.3 其他工具
+### 5.3 lmsys LLM Decontaminator（基准去污工具）
+
+- **仓库:** https://github.com/lm-sys/llm-decontaminator
+- **论文:** [Rethinking Benchmark and Contamination for Language Models with Rephrased Samples](https://arxiv.org/abs/2311.04850) (LMSYS, 2023)
+- **用途:** 检测训练数据中与评测基准语义相似的"改写污染"样本，并从训练集中移除
+
+#### 5.3.1 为什么需要它？
+
+传统去污方法用 **n-gram 字符串匹配**（如 GPT-4 技术报告中的做法），但这种方法无法检测：
+- 改写/释义（paraphrasing）
+- 翻译后的等价题目
+- 变量名/数字替换后的同题
+
+论文证明：**一个 13B 模型只要训练了改写后的基准数据，就能在 MMLU 上达到接近 GPT-4 的分数**——这说明 n-gram 去污完全不够。
+
+#### 5.3.2 核心原理：两阶段检测
+
+```
+Stage 1: Embedding 召回（粗筛）
+  训练集 ──→ SentenceTransformer 编码 ──→ 向量
+  测试集 ──→ SentenceTransformer 编码 ──→ 向量
+  ──→ 余弦相似度 Top-K 匹配 ──→ 候选对
+
+Stage 2: LLM 判定（精筛）
+  候选对 ──→ GPT-4 判断 "这两道题是否是同一个问题？" ──→ True/False
+```
+
+**Stage 1 — 向量召回**
+- 使用 `multi-qa-MiniLM-L6-cos-v1`（轻量 SentenceTransformer）
+- 对训练集和测试集分别做 embedding
+- 计算余弦相似度矩阵，取每个测试样本的 Top-K 最相似训练样本
+- 目的：从百万级训练集中快速筛出小量候选对（降低 LLM 调用量）
+
+**Stage 2 — LLM 精确判定**
+- 将候选对送给 GPT-4（默认），用专门的 prompt 判断两个样本是否为同一问题
+- 针对不同数据类型有定制化 prompt：
+
+| 数据类型 | Prompt 策略 |
+|----------|-------------|
+| `code` | 判断两段程序是否解决同一个问题（忽略实现方式，只看目标/输入/输出） |
+| `math` | 判断两道数学题是否相同（忽略姓名和语序变化，如果 prompt 相似且答案相同则视为同题） |
+| `number_substitution` | 更严格的数学比对（额外忽略数字差异） |
+| `knowledge` | 判断两道知识题是否相同（忽略姓名和语序） |
+
+- LLM 只回答 "True" 或 "False"，temperature=0.3，最多重试 30 次
+
+#### 5.3.3 实际检出率（论文数据）
+
+| 训练集 | 基准 | 训练集大小 | 改写污染数 | 污染率 |
+|--------|------|-----------|-----------|--------|
+| The Stack (4G) | HumanEval | 500K | 31 | **18.9%** |
+| StarCoder-Data (2.4G) | HumanEval | 500K | 26 | **15.9%** |
+| CodeExercise-Python | HumanEval | 27K | 26 | **15.9%** |
+| CodeAlpaca | HumanEval | 20K | 21 | **12.8%** |
+| RedPajama-1T (16G) | HumanEval | 1.6M | 14 | **8.5%** |
+| MATHInstruct | MATH Test | 262K | 769 | **15.4%** |
+| MATH Train | MATH Test | 7.5K | 79 | **1.6%** |
+| FLAN CoT | MMLU | 184K | 76 | 0.5% |
+| WizardLM-Evol-Instruct | MMLU | 143K | 75 | 0.5% |
+
+**关键发现：** 即使是 GPT-3.5/4 合成的数据集也存在无意的基准污染风险。
+
+#### 5.3.4 在 Nemotron 数据集中的应用
+
+NVIDIA 在构建 Llama-Nemotron 数据集时，对以下基准做了去污：
+- **数学:** 热门数学基准（MATH 等）
+- **代码:** HumanEval、MBPP、LiveCodeBench、BigCodeBench
+
+去污流程集成在 NeMo-Skills 管道中，确保训练数据不包含评测集的改写版本。
+
+#### 5.3.5 使用方式
+
+```bash
+# 安装
+git clone https://github.com/lm-sys/llm-decontaminator.git
+cd llm-decontaminator
+pip install -r requirement.txt
+
+# 运行（需要 OPENAI_API_KEY）
+export OPENAI_API_KEY=sk-xxx
+python3 main.py \
+    --train_path ./data/train/your_data.jsonl \
+    --test_path ./data/test/HumanEval.jsonl \
+    --output_path ./data/database/output.jsonl \
+    --data-type code \
+    --top_k 1
+```
+
+输入格式：每行一个 `{"text": "..."}` 的 JSONL 文件。
+
+### 5.4 其他工具
 
 | 工具 | 用途 | 地址 |
 |------|------|------|
-| lmsys decontaminator | 基准去污（防止评测数据泄露） | https://github.com/lm-sys/llm-decontaminator |
 | Llama-3.1-Nemotron-70B-Reward | 奖励模型，用于聊天数据拒绝采样 | https://huggingface.co/nvidia/Llama-3.1-Nemotron-70B-Reward-HF |
 | NeMo Framework | 模型训练 | NVIDIA NeMo |
 | NeMo Customizer | 微调微服务 | NVIDIA NeMo |
