@@ -262,66 +262,128 @@ AoPS 论坛原始帖子
 | 2024-10 | OpenMathInstruct-2 | 1400万数学指令调优数据 |
 | 2025-12 | Nemotron-Math-v2 / Math-Proofs-v1 | 形式化证明数据 |
 
-#### 5.1.7 安装与使用
-
-```bash
-# 安装（推荐 editable 模式）
-git clone https://github.com/NVIDIA-NeMo/Skills.git
-cd Skills
-pip install -e .
-
-# 初始化集群配置
-ns setup  # 交互式选择 local / slurm
-
-# 准备评测数据
-ns prepare_data aime24 aime25
-
-# 运行评测（本地 vLLM）
-ns generate \
-    --cluster=local \
-    --server_type=vllm \
-    --model=Qwen/Qwen2.5-1.5B-Instruct \
-    --server_gpus=1 \
-    --output_dir=/workspace/eval \
-    --input_file=/workspace/input.jsonl \
-    ++prompt_config=/workspace/prompt.yaml
-
-# 运行评测（API 模式，无需 GPU）
-ns generate \
-    --server_type=openai \
-    --model=meta/llama-3.1-8b-instruct \
-    --server_address=https://integrate.api.nvidia.com/v1 \
-    --output_dir=./generation \
-    --input_file=./input.jsonl \
-    ++prompt_config=./prompt.yaml
-```
-
-**集群配置示例（Slurm）：**
-```yaml
-executor: slurm
-containers:
-  trtllm: nvcr.io/nvidia/tensorrt-llm/release:1.0.0
-  vllm: vllm/vllm-openai:v0.10.1.1
-  nemo-skills: dockerfile:dockerfiles/Dockerfile.nemo-skills
-mounts:
-  - /mnt/datadrive/models:/models
-  - /home/user/workspace:/workspace
-```
-
 ### 5.2 NeMo-Curator
 
 - **仓库:** https://github.com/NVIDIA-NeMo/Curator
-- **用途:** 通用数据管护（文本/图像/视频/音频多模态）
-- **核心能力:**
-  - **文本:** 去重（精确/模糊MinHash/语义GPU加速）、30+启发式过滤器、fastText分类、语言检测
-  - **图像:** 美学评分、NSFW检测、CLIP嵌入、去重
-  - **视频:** 场景检测、片段提取、运动过滤、Cosmos-Embed1 嵌入
-  - **音频:** ASR转写、WER过滤、质量评估
-- **性能:**
-  - 16x 加速（8TB RedPajama v2 模糊去重）
-  - 40% TCO 降低（vs CPU 方案）
-  - 近线性扩展（1→4 H100 节点：2.05h → 0.50h）
-- **安装:** `uv pip install "nemo-curator[text_cuda12]"`
+- **文档:** https://docs.nvidia.com/nemo/curator/latest/
+- **用途:** GPU 加速的多模态数据管护工具包，覆盖文本/图像/视频/音频
+
+#### 5.2.1 为什么需要它？
+
+训练数据的质量直接决定模型性能。但原始数据（Common Crawl、用户对话等）充满噪声、重复和低质内容。传统 CPU 方案处理 TB 级数据需要数天，NeMo-Curator 用 **NVIDIA RAPIDS（cuDF/cuML/cuGraph）+ Ray** 实现 GPU 加速，在相同硬件上快 16 倍。
+
+在 Nemotron 数据集中，NeMo-Curator 主要用于**聊天数据管护**——从 WildChat 和合成数据中筛选高质量 prompt。
+
+#### 5.2.2 核心架构
+
+```
+NeMo-Curator 架构：
+
+              ┌──────────────────────┐
+              │     Data Loading     │
+              │  Common Crawl / Wiki │
+              │  ArXiv / Custom / S3 │
+              └──────────┬───────────┘
+                         │
+         ┌───────────────┼───────────────┐
+         ▼               ▼               ▼
+   ┌──────────┐   ┌──────────┐   ┌──────────┐
+   │   Text   │   │  Image   │   │  Video   │   + Audio
+   └────┬─────┘   └────┬─────┘   └────┬─────┘
+        │               │               │
+   ┌────▼─────┐   ┌────▼─────┐   ┌────▼─────┐
+   │ Cleaning  │   │  CLIP    │   │TransNetV2│
+   │ LangID    │   │ Embedding│   │ Scene    │
+   │ Heuristic │   │ Aesthetic│   │ Detection│
+   │ Filtering │   │ NSFW     │   │ Motion   │
+   │ Classifier│   │ Filter   │   │ Filter   │
+   └────┬─────┘   └────┬─────┘   └────┬─────┘
+        │               │               │
+   ┌────▼─────────────────────────────────▼────┐
+   │          Deduplication Layer               │
+   │  Exact / Fuzzy(MinHash LSH) / Semantic    │
+   │  K-means Clustering / Pairwise Similarity │
+   └───────────────────────────────────────────┘
+        │
+        ▼
+   Curated Dataset
+```
+
+#### 5.2.3 四大模态能力详解
+
+**📝 文本管护**
+
+| 功能 | 实现方式 | 说明 |
+|------|----------|------|
+| 数据加载 | Common Crawl / Wikipedia / ArXiv / 自定义 | 支持多种公开语料 |
+| 文本清洗 | 正则 + 启发式规则 | 去除 HTML、特殊字符、乱码 |
+| 语言检测 | fastText 模型 | 多语言识别 |
+| 质量过滤 | 30+ 启发式过滤器 + fastText 分类 + GPU 分类器 | 过滤低质、色情、有害内容 |
+| 精确去重 | 哈希匹配 | 完全相同的文档 |
+| 模糊去重 | MinHash LSH | 近似重复文档（最常用） |
+| 语义去重 | GPU 加速嵌入 + 余弦相似度 | 意义相近但表述不同的文档 |
+
+**🖼️ 图像管护**
+
+| 功能 | 实现方式 |
+|------|----------|
+| 数据加载 | WebDataset 格式，支持大规模图文对 |
+| 嵌入生成 | CLIP embedding 用于语义分析 |
+| 美学评分 | 自动评估图像质量 |
+| NSFW 检测 | 过滤不安全内容 |
+| 去重 | 基于嵌入的相似度去重 |
+
+**🎬 视频管护**
+
+| 功能 | 实现方式 |
+|------|----------|
+| 数据加载 | 本地路径 / S3 / HTTP(S) |
+| 片段切割 | 固定步长 + TransNetV2 场景检测 |
+| GPU 编码 | H.264 硬件加速 |
+| 运动过滤 | 过滤静态/低运动片段 |
+| 美学过滤 | 视觉质量评估 |
+| 嵌入 | Cosmos-Embed1 片段级嵌入 |
+| 去重 | K-means 聚类 + 成对相似度 |
+
+**🔊 音频管护**
+
+| 功能 | 实现方式 |
+|------|----------|
+| 数据加载 | 本地文件 / 自定义 manifest / FLEURS 等公开数据集 |
+| ASR 转写 | NeMo 预训练 ASR 模型自动转写 |
+| 质量评估 | WER 计算 + 时长分析 + 质量过滤 |
+| 多模态集成 | 与文本管护流程无缝衔接 |
+
+#### 5.2.4 性能基准
+
+| 指标 | 数据 |
+|------|------|
+| 模糊去重加速 | **16x**（8TB RedPajama v2 / 1.78 万亿 token） |
+| TCO 降低 | **40%**（vs CPU 方案） |
+| 扩展性 | 近线性（1→4 H100 80GB 节点：2.05h → 0.50h） |
+
+**消融实验验证：** 使用 357M 参数 GPT 模型在 curated Common Crawl 上训练，经过文本清洗→去重→质量过滤各阶段，零样本下游任务性能逐步提升。
+
+#### 5.2.5 在 Nemotron 数据集中的应用
+
+NeMo-Curator 在 Llama-Nemotron 数据集构建中主要负责**聊天数据管护**：
+
+1. **Prompt 管护** — 从 WildChat 和合成数据中筛选高质量 prompt
+2. **偏好数据生成** — 参考 [synthetic preference data generation tutorial](https://github.com/NVIDIA/NeMo-Curator/blob/main/tutorials/nemotron_340B_synthetic_datagen/synthetic_preference_data_generation_nemotron_4_340B.ipynb)
+3. **拒绝采样配合** — 为 Llama-3.1-Nemotron-70B-Reward 奖励模型提供候选响应的筛选框架
+
+#### 5.2.6 底层技术栈
+
+| 组件 | 用途 |
+|------|------|
+| NVIDIA RAPIDS cuDF | GPU 加速数据帧操作 |
+| NVIDIA RAPIDS cuML | GPU 加速机器学习（聚类、降维） |
+| NVIDIA RAPIDS cuGraph | GPU 加速图分析（去重中的连通分量） |
+| Ray | 分布式计算调度（多节点扩展） |
+| fastText | 语言检测 + 质量分类 |
+| CLIP | 图像嵌入 + 语义分析 |
+| TransNetV2 | 视频场景检测 |
+| Cosmos-Embed1 | 视频片段嵌入 |
 
 ### 5.3 lmsys LLM Decontaminator（基准去污工具）
 
@@ -424,26 +486,7 @@ python3 main.py \
 
 ---
 
-## 六、快速使用
-
-```python
-from datasets import load_dataset
-
-# 加载代码和数学 SFT 数据
-ds = load_dataset("nvidia/Llama-Nemotron-Post-Training-Dataset", "SFT", split=["code", "math"])
-
-# 加载 RL 数据
-ds_rl = load_dataset("nvidia/Llama-Nemotron-Post-Training-Dataset", "RL", split="instruction_following")
-
-# 加载特定类别
-ds_chat = load_dataset("nvidia/Llama-Nemotron-Post-Training-Dataset", "SFT", split="chat")
-ds_safety = load_dataset("nvidia/Llama-Nemotron-Post-Training-Dataset", "SFT", split="safety")
-ds_science = load_dataset("nvidia/Llama-Nemotron-Post-Training-Dataset", "SFT", split="science")
-```
-
----
-
-## 七、总结
+## 六、总结
 
 这是目前开源社区最完整的后训练数据集之一。核心价值：
 
