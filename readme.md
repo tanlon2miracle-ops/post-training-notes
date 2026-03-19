@@ -33,6 +33,7 @@ Pre-trained LLM
 | 06 | [verl 框架](06-verl-framework.md) | 字节跳动 | RL 训练框架选型与实操 | [GitHub](https://github.com/volcengine/verl) |
 | 07 | [Llama-Nemotron 数据集](07-llama-nemotron-post-training-dataset.md) | NVIDIA | 3300万样本后训练数据集 + 完整工具链 | [Blog](https://developer.nvidia.cn/blog/build-custom-reasoning-models-with-advanced-open-post-training-datasets/) |
 | 08 | [CoPaw + AgentScope 生态](08-copaw-agentscope-ecosystem.md) | 阿里 AgentScope | Python Agent 框架全景（CoPaw/AgentScope/Runtime/ReMe） | [GitHub](https://github.com/agentscope-ai/CoPaw) |
+| 10 | [Self-Rewarding LMs 系列](10-self-rewarding-language-models.md) | Meta / Apple | 自我奖励对齐（SRLM + CREAM + Apple SRLM） | [arXiv](https://arxiv.org/abs/2401.10020) |
 | — | [横向对比](comparison.md) | — | 各工作的系统对比分析 | — |
 
 ## 🗺️ 阅读路线
