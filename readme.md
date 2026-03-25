@@ -35,6 +35,7 @@ Pre-trained LLM
 | 08 | [CoPaw + AgentScope 生态](08-copaw-agentscope-ecosystem.md) | 阿里 AgentScope | Python Agent 框架全景（CoPaw/AgentScope/Runtime/ReMe） | [GitHub](https://github.com/agentscope-ai/CoPaw) |
 | 10 | [Self-Rewarding LMs 系列](10-self-rewarding-language-models.md) | Meta / Apple | 自我奖励对齐（SRLM + CREAM + Apple SRLM） | [arXiv](https://arxiv.org/abs/2401.10020) |
 | 11 | [Google TurboQuant](11-google-turboquant.md) | Google Research & DeepMind | 在线向量量化：KV Cache 6x 压缩 + 8x 加速 | [arXiv](https://arxiv.org/abs/2504.19874) |
+| 12 | [AutoResearch 生态](12-autoresearch-ecosystem.md) | Karpathy / aiming-lab 等 | AI 自主研究与优化循环 | [GitHub](https://github.com/karpathy/autoresearch) |
 | — | [横向对比](comparison.md) | — | 各工作的系统对比分析 | — |
 
 ## 🗺️ 阅读路线
