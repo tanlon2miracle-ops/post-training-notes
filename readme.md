@@ -34,6 +34,7 @@ Pre-trained LLM
 | 07 | [Llama-Nemotron 数据集](07-llama-nemotron-post-training-dataset.md) | NVIDIA | 3300万样本后训练数据集 + 完整工具链 | [Blog](https://developer.nvidia.cn/blog/build-custom-reasoning-models-with-advanced-open-post-training-datasets/) |
 | 08 | [CoPaw + AgentScope 生态](08-copaw-agentscope-ecosystem.md) | 阿里 AgentScope | Python Agent 框架全景（CoPaw/AgentScope/Runtime/ReMe） | [GitHub](https://github.com/agentscope-ai/CoPaw) |
 | 10 | [Self-Rewarding LMs 系列](10-self-rewarding-language-models.md) | Meta / Apple | 自我奖励对齐（SRLM + CREAM + Apple SRLM） | [arXiv](https://arxiv.org/abs/2401.10020) |
+| 11 | [Google TurboQuant](11-google-turboquant.md) | Google Research & DeepMind | 在线向量量化：KV Cache 6x 压缩 + 8x 加速 | [arXiv](https://arxiv.org/abs/2504.19874) |
 | — | [横向对比](comparison.md) | — | 各工作的系统对比分析 | — |
 
 ## 🗺️ 阅读路线
