@@ -1,0 +1,473 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MD Dashboard Demo</title>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<style>
+  :root {
+    --bg: #0f1117;
+    --card: #1a1d27;
+    --border: #2a2d3a;
+    --text: #e1e4ed;
+    --text2: #8b8fa3;
+    --accent: #6c5ce7;
+    --green: #00cec9;
+    --orange: #fdcb6e;
+    --red: #ff7675;
+    --blue: #74b9ff;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 24px;
+  }
+  h1.dashboard-title {
+    font-size: 28px;
+    margin-bottom: 8px;
+  }
+  .dashboard-subtitle {
+    color: var(--text2);
+    margin-bottom: 24px;
+    font-size: 14px;
+  }
+
+  /* KPI cards row */
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin-bottom: 24px;
+  }
+  .kpi-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+  }
+  .kpi-card .label { color: var(--text2); font-size: 13px; margin-bottom: 6px; }
+  .kpi-card .value { font-size: 32px; font-weight: 700; }
+  .kpi-card .trend { font-size: 13px; margin-top: 4px; }
+  .kpi-card .trend.up { color: var(--green); }
+  .kpi-card .trend.down { color: var(--red); }
+
+  /* Grid layout for panels */
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 16px;
+  }
+  .panel {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    overflow: auto;
+  }
+  .panel-title {
+    font-size: 16px;
+    font-weight: 600;
+    margin-bottom: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .panel-title::before {
+    content: '';
+    width: 4px;
+    height: 18px;
+    background: var(--accent);
+    border-radius: 2px;
+    display: inline-block;
+  }
+
+  /* Markdown prose inside panels */
+  .md-content h1, .md-content h2, .md-content h3 {
+    margin-top: 16px;
+    margin-bottom: 8px;
+  }
+  .md-content p { margin-bottom: 8px; line-height: 1.7; color: var(--text2); }
+  .md-content ul, .md-content ol { padding-left: 20px; margin-bottom: 8px; color: var(--text2); }
+  .md-content li { margin-bottom: 4px; }
+  .md-content strong { color: var(--text); }
+  .md-content code {
+    background: rgba(108,92,231,0.15);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 13px;
+  }
+
+  /* Tables */
+  .md-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 12px;
+    font-size: 14px;
+  }
+  .md-content th {
+    text-align: left;
+    padding: 10px 12px;
+    background: rgba(108,92,231,0.12);
+    border-bottom: 2px solid var(--border);
+    font-weight: 600;
+    color: var(--text);
+  }
+  .md-content td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--border);
+    color: var(--text2);
+  }
+  .md-content tr:hover td { background: rgba(255,255,255,0.03); }
+
+  /* Chart container */
+  .chart-wrap { position: relative; height: 280px; }
+
+  /* Textarea for input */
+  .input-area {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 24px;
+  }
+  .input-area textarea {
+    width: 100%;
+    min-height: 220px;
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 12px;
+    font-family: 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 13px;
+    resize: vertical;
+  }
+  .input-area textarea:focus { outline: 1px solid var(--accent); }
+  .btn {
+    margin-top: 12px;
+    padding: 8px 24px;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
+  }
+  .btn:hover { opacity: 0.85; }
+  .toggle-input {
+    display: inline-block;
+    margin-left: 12px;
+    padding: 8px 16px;
+    background: transparent;
+    color: var(--text2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+  }
+</style>
+</head>
+<body>
+
+<h1 class="dashboard-title">📊 Markdown Dashboard</h1>
+<p class="dashboard-subtitle">粘贴 Markdown → 自动生成看板 · 表格自动出图</p>
+
+<div class="input-area" id="inputArea">
+  <textarea id="mdInput"></textarea>
+  <button class="btn" onclick="renderDashboard()">🚀 生成看板</button>
+  <button class="toggle-input" onclick="toggleInput()">收起编辑器</button>
+</div>
+
+<div id="kpiRow" class="kpi-row"></div>
+<div id="dashboard" class="grid"></div>
+
+<script>
+// ──── Demo markdown ────
+const DEMO_MD = `# Q1 2026 业务报告
+
+## 📌 摘要
+
+本季度整体表现 **强劲**，核心指标全面增长。用户活跃度提升显著，营收环比增长 **23.5%**，新用户获取成本持续下降。
+
+重点关注：
+- 移动端转化率突破 **4.2%**，创历史新高
+- 海外市场贡献占比提升至 **18%**
+- 基础设施成本优化节省 **¥120万/月**
+
+## 📊 核心指标
+
+| 指标 | Q4 2025 | Q1 2026 | 环比 |
+|------|---------|---------|------|
+| DAU | 128万 | 156万 | +21.9% |
+| 营收 | ¥3420万 | ¥4225万 | +23.5% |
+| 毛利率 | 62.1% | 65.8% | +3.7pp |
+| ARPU | ¥26.7 | ¥27.1 | +1.5% |
+
+## 📈 月度营收趋势
+
+| 月份 | 营收(万) | 用户数(万) | 转化率 |
+|------|----------|-----------|--------|
+| 1月 | 1280 | 142 | 3.6% |
+| 2月 | 1350 | 148 | 3.9% |
+| 3月 | 1595 | 156 | 4.2% |
+
+## 🏷️ 各渠道占比
+
+| 渠道 | 占比 | 营收(万) |
+|------|------|----------|
+| 自然搜索 | 35% | 1479 |
+| 付费投放 | 28% | 1183 |
+| 社交媒体 | 19% | 803 |
+| 海外市场 | 18% | 760 |
+
+## 🔧 技术与产品
+
+- **API 平均延迟**从 230ms 降至 **145ms**（-37%）
+- 部署频率提升至 **12次/周**，回滚率 < 1%
+- 新上线 AI 推荐引擎，A/B 测试点击率提升 **+31%**
+- 完成数据库从 MySQL 到 TiDB 的迁移，查询性能提升 **5x**
+`;
+
+document.getElementById('mdInput').value = DEMO_MD;
+
+// ──── Parse helpers ────
+function extractTables(md) {
+  // Split by headings, each section = { title, content, tables[] }
+  const sections = [];
+  const lines = md.split('\\n');
+  let current = { title: '', lines: [] };
+
+  for (const line of lines) {
+    const hMatch = line.match(/^#{1,3}\\s+(.+)/);
+    if (hMatch) {
+      if (current.title || current.lines.length) sections.push(current);
+      current = { title: hMatch[1].replace(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu, '').trim(), lines: [] };
+    } else {
+      current.lines.push(line);
+    }
+  }
+  if (current.title || current.lines.length) sections.push(current);
+
+  // Parse tables from each section
+  return sections.map(sec => {
+    const tables = [];
+    let inTable = false, headerRow = null, rows = [];
+    for (const line of sec.lines) {
+      const trimmed = line.trim();
+      if (trimmed.startsWith('|') && trimmed.endsWith('|')) {
+        const cells = trimmed.split('|').slice(1, -1).map(c => c.trim());
+        if (!inTable) {
+          headerRow = cells;
+          inTable = true;
+        } else if (cells.every(c => /^[-:]+$/.test(c))) {
+          continue; // separator
+        } else {
+          rows.push(cells);
+        }
+      } else {
+        if (inTable && headerRow) {
+          tables.push({ headers: headerRow, rows: [...rows] });
+          headerRow = null; rows = []; inTable = false;
+        }
+      }
+    }
+    if (inTable && headerRow) tables.push({ headers: headerRow, rows });
+    return { ...sec, content: sec.lines.join('\\n'), tables };
+  });
+}
+
+function parseNum(str) {
+  const s = str.replace(/[¥%,，pp]/g, '').trim();
+  const n = parseFloat(s);
+  return isNaN(n) ? null : n;
+}
+
+// ──── KPI extraction ────
+function extractKPIs(sections) {
+  // Look for a table with columns like 指标/Q-something/环比
+  for (const sec of sections) {
+    for (const t of sec.tables) {
+      const hasChange = t.headers.some(h => /环比|变化|增长|change/i.test(h));
+      if (hasChange && t.rows.length >= 2) {
+        return t.rows.map(row => {
+          const label = row[0];
+          const prev = row.length > 1 ? row[1] : '';
+          const curr = row.length > 2 ? row[2] : '';
+          const change = row.length > 3 ? row[3] : '';
+          const isUp = change.includes('+');
+          return { label, value: curr, change, up: isUp };
+        });
+      }
+    }
+  }
+  return [];
+}
+
+// ──── Chart generation ────
+const CHART_COLORS = ['#6c5ce7', '#00cec9', '#fdcb6e', '#ff7675', '#74b9ff', '#a29bfe', '#55efc4'];
+
+function tryMakeChart(table, canvasId) {
+  if (table.rows.length < 2 || table.headers.length < 2) return false;
+  // First col = labels, rest = numeric series
+  const labels = table.rows.map(r => r[0]);
+  const datasets = [];
+  let hasNumeric = false;
+
+  for (let c = 1; c < table.headers.length; c++) {
+    const data = table.rows.map(r => parseNum(r[c] || ''));
+    if (data.some(v => v !== null)) {
+      hasNumeric = true;
+      datasets.push({
+        label: table.headers[c],
+        data,
+        borderColor: CHART_COLORS[(c - 1) % CHART_COLORS.length],
+        backgroundColor: CHART_COLORS[(c - 1) % CHART_COLORS.length] + '33',
+        fill: true,
+        tension: 0.3,
+        pointRadius: 5,
+        pointHoverRadius: 7,
+      });
+    }
+  }
+  if (!hasNumeric) return false;
+
+  // Determine chart type: if labels look like categories (渠道/占比), use bar/doughnut
+  const isPie = table.headers.some(h => /占比|比例|share/i.test(h)) && datasets.length <= 2;
+
+  requestAnimationFrame(() => {
+    const el = document.getElementById(canvasId);
+    if (!el) return;
+    const ctx = el.getContext('2d');
+
+    if (isPie) {
+      new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{
+            data: datasets[0].data,
+            backgroundColor: CHART_COLORS.slice(0, labels.length),
+            borderWidth: 0,
+          }]
+        },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          plugins: {
+            legend: { position: 'right', labels: { color: '#8b8fa3', padding: 12 } }
+          }
+        }
+      });
+    } else {
+      new Chart(ctx, {
+        type: datasets.length === 1 ? 'bar' : 'line',
+        data: { labels, datasets },
+        options: {
+          responsive: true, maintainAspectRatio: false,
+          scales: {
+            x: { ticks: { color: '#8b8fa3' }, grid: { color: '#2a2d3a' } },
+            y: { ticks: { color: '#8b8fa3' }, grid: { color: '#2a2d3a' } }
+          },
+          plugins: {
+            legend: { labels: { color: '#8b8fa3' } }
+          }
+        }
+      });
+    }
+  });
+  return true;
+}
+
+// ──── Render ────
+let chartCounter = 0;
+function renderDashboard() {
+  const md = document.getElementById('mdInput').value;
+  const sections = extractTables(md);
+  const kpis = extractKPIs(sections);
+
+  // KPI row
+  const kpiRow = document.getElementById('kpiRow');
+  if (kpis.length) {
+    kpiRow.innerHTML = kpis.map(k => `
+      <div class="kpi-card">
+        <div class="label">${k.label}</div>
+        <div class="value">${k.value}</div>
+        <div class="trend ${k.up ? 'up' : 'down'}">${k.change}</div>
+      </div>
+    `).join('');
+  } else {
+    kpiRow.innerHTML = '';
+  }
+
+  // Panels
+  const dash = document.getElementById('dashboard');
+  dash.innerHTML = '';
+  chartCounter = 0;
+
+  for (const sec of sections) {
+    if (!sec.title) continue;
+    // Skip the KPI table section if already shown as cards
+    if (kpis.length && sec.tables.some(t => t.headers.some(h => /环比|变化/i.test(h)))) continue;
+
+    // If section has tables with numeric data, make chart + table panels
+    let hasChart = false;
+    for (const t of sec.tables) {
+      const chartId = 'chart_' + (chartCounter++);
+      // Chart panel
+      const chartPanel = document.createElement('div');
+      chartPanel.className = 'panel';
+      chartPanel.innerHTML = `
+        <div class="panel-title">${sec.title}</div>
+        <div class="chart-wrap"><canvas id="${chartId}"></canvas></div>
+      `;
+      dash.appendChild(chartPanel);
+      if (!tryMakeChart(t, chartId)) {
+        // No chart possible, remove and fall through to table
+        dash.removeChild(chartPanel);
+      } else {
+        hasChart = true;
+      }
+
+      // Table panel
+      const tablePanel = document.createElement('div');
+      tablePanel.className = 'panel';
+      const tableHtml = marked.parse(
+        '| ' + t.headers.join(' | ') + ' |\\n' +
+        '| ' + t.headers.map(() => '---').join(' | ') + ' |\\n' +
+        t.rows.map(r => '| ' + r.join(' | ') + ' |').join('\\n')
+      );
+      tablePanel.innerHTML = `
+        <div class="panel-title">${sec.title}${hasChart ? ' · 数据' : ''}</div>
+        <div class="md-content">${tableHtml}</div>
+      `;
+      dash.appendChild(tablePanel);
+    }
+
+    // Prose-only sections (no tables)
+    if (sec.tables.length === 0 && sec.content.trim()) {
+      const prosePanel = document.createElement('div');
+      prosePanel.className = 'panel';
+      prosePanel.innerHTML = `
+        <div class="panel-title">${sec.title}</div>
+        <div class="md-content">${marked.parse(sec.content)}</div>
+      `;
+      dash.appendChild(prosePanel);
+    }
+  }
+}
+
+function toggleInput() {
+  const area = document.getElementById('inputArea');
+  area.style.display = area.style.display === 'none' ? 'block' : 'none';
+}
+
+// Auto-render on load
+renderDashboard();
+</script>
+</body>
+</html>
